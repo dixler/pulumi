@@ -88,18 +88,18 @@ func getValidProjectNamePrefixes() []string {
 
 func TestRetrieveNonExistingTemplate(t *testing.T) {
 	templateName := "not-the-template-that-exists-in-pulumi-repo-nor-on-disk"
-	_, err := RetrieveTemplates(templateName, false)
+	_, err := RetrieveTemplates(templateName, false, TemplateKindPulumiStack)
 	assert.NotNil(t, err)
 }
 
 func TestRetrieveStandardTemplate(t *testing.T) {
 	templateName := "typescript"
-	repository, err := RetrieveTemplates(templateName, false)
+	repository, err := RetrieveTemplates(templateName, false, TemplateKindPulumiStack)
 	assert.Nil(t, err)
 	assert.Equal(t, false, repository.ShouldDelete)
 
 	// Root should point to Pulumi templates directory (e.g. ~/.pulumi/templates)
-	templateDir, _ := GetTemplateDir()
+	templateDir, _ := GetTemplateDir(TemplateKindPulumiStack)
 	assert.Equal(t, templateDir, repository.Root)
 
 	// SubDirectory should be a direct subfolder of Root with the name of the template
@@ -109,7 +109,7 @@ func TestRetrieveStandardTemplate(t *testing.T) {
 
 func TestRetrieveHttpsTemplate(t *testing.T) {
 	templateURL := "https://github.com/pulumi/pulumi-aws/tree/master/examples/minimal"
-	repository, err := RetrieveTemplates(templateURL, false)
+	repository, err := RetrieveTemplates(templateURL, false, TemplateKindPulumiStack)
 	assert.Nil(t, err)
 	assert.Equal(t, true, repository.ShouldDelete)
 
@@ -135,12 +135,12 @@ func TestRetrieveHttpsTemplate(t *testing.T) {
 
 func TestRetrieveHttpsTemplateOffline(t *testing.T) {
 	templateURL := "https://github.com/pulumi/pulumi-aws/tree/master/examples/minimal"
-	_, err := RetrieveTemplates(templateURL, true)
+	_, err := RetrieveTemplates(templateURL, true, TemplateKindPulumiStack)
 	assert.NotNil(t, err)
 }
 
 func TestRetrieveFileTemplate(t *testing.T) {
-	repository, err := RetrieveTemplates(".", false)
+	repository, err := RetrieveTemplates(".", false, TemplateKindPulumiStack)
 	assert.Nil(t, err)
 	assert.Equal(t, false, repository.ShouldDelete)
 

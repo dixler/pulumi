@@ -133,7 +133,7 @@ func runNew(args newArgs) error {
 	}
 
 	// Retrieve the template repo.
-	repo, err := workspace.RetrieveTemplates(args.templateNameOrURL, args.offline)
+	repo, err := workspace.RetrieveTemplates(args.templateNameOrURL, args.offline, workspace.TemplateKindPulumiStack)
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func newNewCmd() *cobra.Command {
 		defaultHelp(cmd, args)
 
 		// Attempt to retrieve available templates.
-		repo, err := workspace.RetrieveTemplates("", false /*offline*/)
+		repo, err := workspace.RetrieveTemplates("", false /*offline*/, workspace.TemplateKindPulumiStack)
 		if err != nil {
 			logging.Warningf("could not retrieve templates: %v", err)
 			return
@@ -549,15 +549,19 @@ func installDependencies() error {
 		return nil
 	}
 
+	// Run the command.
+	// TODO[pulumi/pulumi#1307]: move to the language plugins so we don't have to hard code here.
+	return npmInstallDependencies()
+}
+
+// npmInstallDependencies will install dependencies for the project or Policy Pack by running `npm install`.
+func npmInstallDependencies() error {
 	fmt.Println("Installing dependencies...")
 	fmt.Println()
 
-	// Run the command.
-	// TODO[pulumi/pulumi#1307]: move to the language plugins so we don't have to hard code here.
-	err = npm.Install("", os.Stdout, os.Stderr)
+	err := npm.Install("", os.Stdout, os.Stderr)
 	if err != nil {
-		return errors.Wrapf(err, "npm install failed; rerun manually to try again, "+
-			"then run 'pulumi up' to perform an initial deployment")
+		return errors.Wrapf(err, "npm install failed; rerun manually to try again.")
 	}
 
 	fmt.Println("Finished installing dependencies")
@@ -950,4 +954,70 @@ func containsWhiteSpace(value string) bool {
 		}
 	}
 	return false
+}
+
+// choosePolicyPackTemplate will prompt the user to choose amongst the available templates.
+func choosePolicyPackTemplate(templates []workspace.PolicyPackTemplate, opts display.Options) (workspace.PolicyPackTemplate, error) {
+	const chooseTemplateErr = "no template selected; please use `pulumi new` to choose one"
+	if !opts.IsInteractive {
+		return workspace.PolicyPackTemplate{}, errors.New(chooseTemplateErr)
+	}
+
+	// Customize the prompt a little bit (and disable color since it doesn't match our scheme).
+	surveycore.DisableColor = true
+	surveycore.QuestionIcon = ""
+	surveycore.SelectFocusIcon = opts.Color.Colorize(colors.BrightGreen + ">" + colors.Reset)
+	message := "\rPlease choose a template:"
+	message = opts.Color.Colorize(colors.SpecPrompt + message + colors.Reset)
+
+	var selectedOption workspace.PolicyPackTemplate
+
+	for {
+		options, optionToTemplateMap := policyTemplatesToOptionArrayAndMap(templates)
+
+		var option string
+		if err := survey.AskOne(&survey.Select{
+			Message:  message,
+			Options:  options,
+			PageSize: len(options),
+		}, &option, nil); err != nil {
+			return workspace.PolicyPackTemplate{}, errors.New(chooseTemplateErr)
+		}
+
+		var has bool
+		selectedOption, has = optionToTemplateMap[option]
+		if has {
+			break
+		} else {
+			fmt.Fprintln(os.Stderr, "Error invalid pack selected.")
+		}
+	}
+
+	return selectedOption, nil
+}
+
+// policyTemplatesToOptionArrayAndMap returns an array of option strings and a map of option strings to policy
+// templates. Each option string is made up of the template name and description with some padding in between.
+func policyTemplatesToOptionArrayAndMap(templates []workspace.PolicyPackTemplate) ([]string, map[string]workspace.PolicyPackTemplate) {
+	// Find the longest name length. Used to add padding between the name and description.
+	maxNameLength := 0
+	for _, template := range templates {
+		if len(template.Name) > maxNameLength {
+			maxNameLength = len(template.Name)
+		}
+	}
+
+	// Build the array and map.
+	var options []string
+	nameToTemplateMap := make(map[string]workspace.PolicyPackTemplate)
+	for _, template := range templates {
+		// Create the option string that combines the name, padding, and description.
+		option := fmt.Sprintf(fmt.Sprintf("%%%ds    %%s", -maxNameLength), template.Name, "")
+
+		// Add it to the array and map.
+		options = append(options, option)
+		nameToTemplateMap[option] = template
+	}
+	sort.Strings(options)
+	return options, nameToTemplateMap
 }
