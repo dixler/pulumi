@@ -6,6 +6,10 @@ CHANGELOG
 - Adds a **preview** of .NET support for Pulumi. This code is an preview state and is subject
   to change at any point.
 
+- `pulumi update` can now be instructed that a set of resources should be replaced by adding a
+  `--replace urn` argument.  Multiple resources can be specified using `--replace urn1 --replace urn2`.
+  [#3418](https://github.com/pulumi/pulumi/pull/3418)
+
 ## 1.4.0 (2019-10-24)
 
 - `FileAsset` in the Python SDK now accepts anything implementing `os.PathLike` in addition to `str`.
